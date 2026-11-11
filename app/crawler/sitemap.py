@@ -1,9 +1,9 @@
+
 import httpx
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse, urljoin
 
 from app.crawler.fetcher import validate_url
-from app.crawler.sitemap import discover_sitemap
 
 
 def get_sitemap_locations(base_url: str):
@@ -16,15 +16,15 @@ def get_sitemap_locations(base_url: str):
         response = httpx.get(
             robots_url,
             timeout=15,
-            follow_redirects=False
+            follow_redirects=False,
+            headers={"User-Agent": "TruckSEO-Intelligence/1.0"}
         )
 
         if response.status_code == 200:
             for line in response.text.splitlines():
                 if line.lower().startswith("sitemap:"):
-                    sitemap_locations.append(
-                        line.split(":", 1)[1].strip()
-                    )
+                    location = line.split(":", 1)[1].strip()
+                    sitemap_locations.append(location)
 
     except (httpx.HTTPError, ValueError):
         pass
@@ -49,22 +49,45 @@ def parse_sitemap(sitemap_url: str, base_domain: str):
 
     response.raise_for_status()
 
+    # Limit sitemap response size to 2 MB
+    if len(response.content) > 2_000_000:
+        raise ValueError("Sitemap exceeds 2 MB limit")
+
     root = ET.fromstring(response.content)
 
     urls = []
+    child_sitemaps = []
+
+    root_type = root.tag.split("}")[-1].lower()
 
     for element in root.iter():
-        if element.tag.endswith("loc") and element.text:
-            location = element.text.strip()
+        if element.tag.split("}")[-1].lower() != "loc":
+            continue
 
-            if urlparse(location).hostname == base_domain:
-                urls.append(location)
+        if not element.text:
+            continue
 
-    return urls
+        location = element.text.strip()
+        parsed_location = urlparse(location)
+
+        if parsed_location.hostname != base_domain:
+            continue
+
+        if root_type == "sitemapindex":
+            child_sitemaps.append(location)
+
+        elif root_type == "urlset":
+            urls.append(location)
+
+    return {
+        "urls": urls,
+        "sitemaps": child_sitemaps
+    }
 
 
 def discover_sitemap(website_url: str):
     parsed = urlparse(website_url)
+
     base_url = f"{parsed.scheme}://{parsed.netloc}"
     base_domain = parsed.hostname
 
@@ -72,12 +95,29 @@ def discover_sitemap(website_url: str):
         return []
 
     discovered_urls = set()
+    sitemap_queue = get_sitemap_locations(base_url)
+    visited_sitemaps = set()
 
-    for sitemap_url in get_sitemap_locations(base_url):
+    # Limit sitemap files to prevent excessive requests
+    max_sitemaps = 10
+
+    while sitemap_queue and len(visited_sitemaps) < max_sitemaps:
+        sitemap_url = sitemap_queue.pop(0)
+
+        if sitemap_url in visited_sitemaps:
+            continue
+
+        visited_sitemaps.add(sitemap_url)
+
         try:
-            discovered_urls.update(
-                parse_sitemap(sitemap_url, base_domain)
-            )
+            result = parse_sitemap(sitemap_url, base_domain)
+
+            discovered_urls.update(result["urls"])
+
+            for child in result["sitemaps"]:
+                if child not in visited_sitemaps:
+                    sitemap_queue.append(child)
+
         except (httpx.HTTPError, ET.ParseError, ValueError):
             continue
 
