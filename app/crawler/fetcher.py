@@ -4,7 +4,7 @@ import socket
 import ipaddress
 
 from bs4 import BeautifulSoup
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urljoin
 
 from app.crawler.link_extractor import extract_internal_links
 
@@ -107,11 +107,13 @@ def fetch_page(url: str):
 
     soup = BeautifulSoup(html, "lxml")
 
+    # Extract page title
     title = (
         soup.title.get_text(" ", strip=True)
         if soup.title else None
     )
 
+    # Extract meta description
     meta_tag = soup.find(
         "meta",
         attrs={"name": "description"}
@@ -122,6 +124,7 @@ def fetch_page(url: str):
         if meta_tag else None
     )
 
+    # Extract hyperlinks
     links = [
         link.get("href")
         for link in soup.find_all("a", href=True)
@@ -129,6 +132,18 @@ def fetch_page(url: str):
 
     internal_links = extract_internal_links(url, links)
 
+    # Extract images and ALT attributes
+    images = []
+
+    for image in soup.find_all("img"):
+        image_src = image.get("src")
+
+        images.append({
+            "src": urljoin(url, image_src) if image_src else None,
+            "alt": image.get("alt", "")
+        })
+
+    # Return extracted page information
     return {
         "url": url,
         "title": title,
@@ -145,5 +160,6 @@ def fetch_page(url: str):
         },
         "text": soup.get_text(" ", strip=True)[:10000],
         "links": links,
-        "internal_links": internal_links
+        "internal_links": internal_links,
+        "images": images
     }
