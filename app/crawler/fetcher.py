@@ -2,6 +2,7 @@
 import httpx
 import socket
 import ipaddress
+import json
 
 from bs4 import BeautifulSoup
 from urllib.parse import urlsplit, urljoin
@@ -85,7 +86,7 @@ def fetch_page(url: str):
                 for chunk in response.iter_bytes():
                     total_size += len(chunk)
 
-                    if total_size > MAX_PAGE_SIZE:
+                                        if total_size > MAX_PAGE_SIZE:
                         raise ValueError(
                             "Page exceeds 2 MB limit"
                         )
@@ -132,7 +133,7 @@ def fetch_page(url: str):
 
     internal_links = extract_internal_links(url, links)
 
-    # Extract images and ALT attributes
+            # Extract images and ALT attributes
     images = []
 
     for image in soup.find_all("img"):
@@ -142,6 +143,67 @@ def fetch_page(url: str):
             "src": urljoin(url, image_src) if image_src else None,
             "alt": image.get("alt", "")
         })
+    # Extract HTML lists
+    lists = []
+
+    for list_tag in soup.find_all(["ul", "ol"]):
+        items = [
+            item.get_text(" ", strip=True)
+            for item in list_tag.find_all("li", recursive=False)
+        ]
+
+        if items:
+            lists.append({
+                "type": list_tag.name,
+                "items": items
+            })
+
+    # Extract answers following question-based headings
+    faq_sections = []
+
+    question_words = (
+        "what ", "why ", "how ", "when ", "where ",
+        "who ", "which ", "can ", "does ", "do ",
+        "is ", "are "
+    )
+
+    for heading in soup.find_all(["h1", "h2", "h3", "h4"]):
+        question = heading.get_text(" ", strip=True)
+
+        if not (
+            question.lower().startswith(question_words)
+            or "?" in question
+        ):
+            continue
+
+        answer_tag = heading.find_next_sibling(["p", "ul", "ol"])
+
+        if answer_tag:
+            answer = answer_tag.get_text(" ", strip=True)
+
+            if answer:
+                faq_sections.append({
+                    "question": question,
+                    "answer": answer[:500]
+                })
+
+
+    # Extract JSON-LD structured data
+    structured_data = []
+
+    for script in soup.find_all(
+        "script",
+        attrs={"type": "application/ld+json"}
+    ):
+        try:
+            json_content = json.loads(
+                script.string or script.get_text()
+            )
+
+            structured_data.append(json_content)
+
+        except (json.JSONDecodeError, TypeError):
+            continue
 
     # Return extracted page information
     return {
@@ -161,5 +223,8 @@ def fetch_page(url: str):
         "text": soup.get_text(" ", strip=True)[:10000],
         "links": links,
         "internal_links": internal_links,
-        "images": images
+        "images": images,
+        "structured_data": structured_data,
+        "lists": lists,
+        "faq_sections": faq_sections
     }
