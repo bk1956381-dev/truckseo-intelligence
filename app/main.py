@@ -3,7 +3,7 @@ from app.crawler.site_crawler import crawl_website
 from app.crawler.fetcher import fetch_page
 from app.crawler.sitemap import discover_sitemap
 from app.analyzer.seo_analyzer import analyze_seo
-
+from app.analyzer.aeo_analyzer import analyze_aeo
 import httpx
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -145,6 +145,24 @@ def analyze_website_seo(data: AuditCreate):
         seo_report = analyze_seo(page_data)
 
         return seo_report
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    except (httpx.HTTPError, OSError, RuntimeError) as error:
+        raise HTTPException(status_code=502, detail=str(error))
+
+
+
+# Analyze AEO of a single webpage
+@app.post("/analyze-aeo")
+def analyze_website_aeo(data: AuditCreate):
+    try:
+        page_data = fetch_page(data.website_url)
+
+        aeo_report = analyze_aeo(page_data)
+
+        return aeo_report
 
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
