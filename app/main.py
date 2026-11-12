@@ -1,14 +1,20 @@
+
 from app.crawler.site_crawler import crawl_website
-import httpx
 from app.crawler.fetcher import fetch_page
+from app.crawler.sitemap import discover_sitemap
+from app.analyzer.seo_analyzer import analyze_seo
+
+import httpx
+
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
-from app.crawler.sitemap import discover_sitemap
+
 from app.database import engine, SessionLocal
 from app.models.audit import Audit
+
 
 app = FastAPI(
     title="TruckSEO Intelligence",
@@ -60,7 +66,7 @@ def database_health(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
         return {"database": "connected"}
-    except Exception as error:
+    except Exception:
         raise HTTPException(
             status_code=503,
             detail="Database connection failed"
@@ -84,36 +90,34 @@ def create_audit(data: AuditCreate, db: Session = Depends(get_db)):
 def get_audits(db: Session = Depends(get_db)):
     return db.query(Audit).order_by(Audit.id.desc()).all()
 
+
+# Crawl a single webpage
 @app.post("/crawl")
 def crawl_single_page(data: AuditCreate):
     try:
-        result = fetch_page(data.website_url)
-        return result
+        return fetch_page(data.website_url)
 
     except ValueError as error:
-        raise HTTPException(
-            status_code=400,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=400, detail=str(error))
 
-    except (httpx.HTTPError, OSError) as error:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Website fetch failed: {str(error)}"
-        )
+    except (httpx.HTTPError, OSError, RuntimeError) as error:
+        raise HTTPException(status_code=502, detail=str(error))
 
 
+# Crawl an entire website
 @app.post("/crawl-site")
 def crawl_entire_site(data: AuditCreate):
     try:
         return crawl_website(data.website_url, max_pages=20)
+
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
+
     except Exception as error:
         raise HTTPException(status_code=502, detail=str(error))
 
 
-
+# Discover sitemap URLs
 @app.post("/discover-sitemap")
 def sitemap_discovery(data: AuditCreate):
     try:
@@ -126,16 +130,24 @@ def sitemap_discovery(data: AuditCreate):
         }
 
     except ValueError as error:
-        raise HTTPException(
-            status_code=400,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=400, detail=str(error))
 
     except Exception as error:
-        raise HTTPException(
-            status_code=502,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=502, detail=str(error))
 
 
-    
+# Analyze SEO of a single webpage
+@app.post("/analyze-seo")
+def analyze_website_seo(data: AuditCreate):
+    try:
+        page_data = fetch_page(data.website_url)
+
+        seo_report = analyze_seo(page_data)
+
+        return seo_report
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    except (httpx.HTTPError, OSError, RuntimeError) as error:
+        raise HTTPException(status_code=502, detail=str(error))
