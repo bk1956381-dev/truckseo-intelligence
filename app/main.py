@@ -15,7 +15,13 @@ from datetime import datetime
 from app.database import engine, SessionLocal
 from app.models.audit import Audit
 
-
+from app.analyzer.geo_analyzer import (
+    analyze_business_identity,
+    analyze_contact_location,
+    analyze_schema_markup,
+    analyze_trust_signals,
+    calculate_geo_score
+)
 app = FastAPI(
     title="TruckSEO Intelligence",
     description="AI-powered SEO, AEO and GEO website auditor",
@@ -163,6 +169,43 @@ def analyze_website_aeo(data: AuditCreate):
         aeo_report = analyze_aeo(page_data)
 
         return aeo_report
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    except (httpx.HTTPError, OSError, RuntimeError) as error:
+        raise HTTPException(status_code=502, detail=str(error))
+
+
+# Analyze GEO of a single webpage
+@app.post("/analyze-geo")
+def analyze_website_geo(data: AuditCreate):
+    try:
+        page_data = fetch_page(data.website_url)
+
+        identity_report = analyze_business_identity(page_data)
+        contact_report = analyze_contact_location(page_data)
+        schema_report = analyze_schema_markup(page_data)
+        trust_report = analyze_trust_signals(page_data)
+
+        geo_score = calculate_geo_score(
+            identity_report,
+            contact_report,
+            schema_report,
+            trust_report
+        )
+
+        return {
+            "url": data.website_url,
+            "geo_score": geo_score["geo_score"],
+            "category_scores": geo_score["category_scores"],
+            "business_identity": identity_report,
+            "contact_location": contact_report,
+            "schema_markup": schema_report,
+            "trust_signals": trust_report,
+            "issues": geo_score["issues"],
+            "recommendations": geo_score["recommendations"]
+        }
 
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
