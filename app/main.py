@@ -4,6 +4,7 @@ from app.crawler.fetcher import fetch_page
 from app.crawler.sitemap import discover_sitemap
 from app.analyzer.seo_analyzer import analyze_seo
 from app.analyzer.aeo_analyzer import analyze_aeo
+from app.analyzer.technical_seo_analyzer import analyze_technical_seo
 import httpx
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -212,3 +213,22 @@ def analyze_website_geo(data: AuditCreate):
 
     except (httpx.HTTPError, OSError, RuntimeError) as error:
         raise HTTPException(status_code=502, detail=str(error))
+
+
+# Analyze technical SEO across a website
+@app.post("/analyze-technical-seo")
+def analyze_website_technical_seo(data: AuditCreate):
+    try:
+        crawl_result = crawl_website(data.website_url, max_pages=20)
+
+        return analyze_technical_seo(
+            crawl_result,
+            data.website_url
+        )
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    except (httpx.HTTPError, OSError, RuntimeError) as error:
+        raise HTTPException(status_code=502, detail=str(error))
+

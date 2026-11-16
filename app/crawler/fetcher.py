@@ -125,6 +125,27 @@ def fetch_page(url: str):
         if meta_tag else None
     )
 
+    canonical_tag = soup.find(
+        "link",
+        attrs={"rel": lambda value: value and "canonical" in value}
+    )
+
+    canonical_url = (
+        urljoin(url, canonical_tag.get("href"))
+        if canonical_tag and canonical_tag.get("href")
+        else None
+    )
+
+    robots_tag = soup.find(
+        "meta",
+        attrs={"name": lambda value: value and value.lower() == "robots"}
+    )
+
+    robots_meta = (
+        robots_tag.get("content", "")
+        if robots_tag else ""
+    )
+
     # Extract hyperlinks
     links = [
         link.get("href")
@@ -210,6 +231,8 @@ def fetch_page(url: str):
         "url": url,
         "title": title,
         "meta_description": meta_description,
+        "canonical_url": canonical_url,
+        "robots_meta": robots_meta,
         "headings": {
     "h1": [
         h.get_text(" ", strip=True)
