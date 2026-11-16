@@ -86,7 +86,7 @@ def fetch_page(url: str):
                 for chunk in response.iter_bytes():
                     total_size += len(chunk)
 
-                                        if total_size > MAX_PAGE_SIZE:
+                    if total_size > MAX_PAGE_SIZE:
                         raise ValueError(
                             "Page exceeds 2 MB limit"
                         )
@@ -211,15 +211,15 @@ def fetch_page(url: str):
         "title": title,
         "meta_description": meta_description,
         "headings": {
-            "h1": [
-                h.get_text(" ", strip=True)
-                for h in soup.find_all("h1")
-            ],
-            "h2": [
-                h.get_text(" ", strip=True)
-                for h in soup.find_all("h2")
-            ]
-        },
+    "h1": [
+        h.get_text(" ", strip=True)
+        for h in soup.find_all("h1")
+    ],
+    "h2": [
+        h.get_text(" ", strip=True)
+        for h in soup.find_all("h2")
+    ]
+},
         "text": soup.get_text(" ", strip=True)[:10000],
         "links": links,
         "internal_links": internal_links,
