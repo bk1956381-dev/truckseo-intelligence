@@ -23,6 +23,11 @@ from app.analyzer.geo_analyzer import (
     analyze_trust_signals,
     calculate_geo_score
 )
+
+from app.analyzer.recommendation_engine import (
+    generate_recommendation_report
+)
+
 app = FastAPI(
     title="TruckSEO Intelligence",
     description="AI-powered SEO, AEO and GEO website auditor",
@@ -232,3 +237,72 @@ def analyze_website_technical_seo(data: AuditCreate):
     except (httpx.HTTPError, OSError, RuntimeError) as error:
         raise HTTPException(status_code=502, detail=str(error))
 
+
+
+
+# Generate combined audit recommendations and service opportunities
+@app.post("/generate-recommendations")
+def generate_website_recommendations(data: AuditCreate):
+    try:
+        # Fetch the homepage for SEO, AEO and GEO.
+        page_data = fetch_page(data.website_url)
+
+        seo_report = analyze_seo(page_data)
+        aeo_report = analyze_aeo(page_data)
+
+        identity_report = analyze_business_identity(page_data)
+        contact_report = analyze_contact_location(page_data)
+        schema_report = analyze_schema_markup(page_data)
+        trust_report = analyze_trust_signals(page_data)
+
+        geo_score = calculate_geo_score(
+            identity_report,
+            contact_report,
+            schema_report,
+            trust_report,
+        )
+
+        geo_report = {
+            "geo_score": geo_score["geo_score"],
+            "category_scores": geo_score["category_scores"],
+            "issues": geo_score["issues"],
+            "recommendations": geo_score["recommendations"],
+        }
+
+        # Crawl the website for technical SEO.
+        crawl_result = crawl_website(
+            data.website_url,
+            max_pages=20,
+        )
+        technical_report = analyze_technical_seo(
+            crawl_result,
+            data.website_url,
+        )
+
+        reports = {
+            "seo": seo_report,
+            "aeo": aeo_report,
+            "geo": geo_report,
+            "technical_seo": technical_report,
+        }
+
+        recommendation_report = generate_recommendation_report(
+            reports
+        )
+
+        return {
+            "website_url": data.website_url,
+            "audit_scores": {
+                "geo": geo_report.get("geo_score"),
+                "technical_seo": technical_report.get(
+                    "technical_seo_score"
+                ),
+            },
+            "recommendation_report": recommendation_report,
+        }
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+    except (httpx.HTTPError, OSError, RuntimeError) as error:
+        raise HTTPException(status_code=502, detail=str(error))
