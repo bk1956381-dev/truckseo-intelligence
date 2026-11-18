@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruckSEO Intelligence</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">T</div>
+            <div>
+                <h2>TruckSEO Intelligence</h2>
+                <p>Website Audit Platform</p>
+            </div>
+        </div>
+        <span class="status">● System Ready</span>
+    </header>
+
+    <main class="container">
+
+        <section class="welcome">
+            <p class="eyebrow">SEO + AEO + GEO ANALYTICS</p>
+            <h1>Website Intelligence Dashboard</h1>
+            <p>Analyze trucking websites and discover opportunities
+               to improve search visibility.</p>
+        </section>
+
+        <section class="audit-box">
+            <label for="websiteUrl">Enter Website URL</label>
+
+            <div class="input-row">
+                <input
+                    type="url"
+                    id="websiteUrl"
+                    placeholder="https://example.com"
+                    required
+                >
+                <button id="analyzeBtn">Analyze Website</button>
+            </div>
+
+            <p id="statusMessage">Enter a website URL to begin your audit.</p>
+        </section>
+
+        <section id="results" class="hidden">
+
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">AUDIT OVERVIEW</p>
+                    <h2>Performance Scores</h2>
+                </div>
+                <span id="auditedUrl"></span>
+            </div>
+
+            <div class="score-grid">
+
+                <div class="score-card">
+                    <p>SEO Score</p>
+                    <h2 id="seoScore">--</h2>
+                    <span>Search Engine Optimization</span>
+                </div>
+
+                <div class="score-card">
+                    <p>AEO Score</p>
+                    <h2 id="aeoScore">--</h2>
+                    <span>Answer Engine Optimization</span>
+                </div>
+
+                <div class="score-card">
+                    <p>GEO Score</p>
+                    <h2 id="geoScore">--</h2>
+                    <span>Generative Engine Optimization</span>
+                </div>
+
+                <div class="score-card">
+                    <p>Technical SEO</p>
+                    <h2 id="technicalScore">--</h2>
+                    <span>Technical Website Health</span>
+                </div>
+
+            </div>
+
+            <div class="section-heading">
+                <h2>Audit Findings</h2>
+            </div>
+
+            <div id="findings" class="findings-grid"></div>
+
+            <div class="section-heading">
+                <h2>Recommendations</h2>
+            </div>
+
+            <div id="recommendations" class="recommendations-box"></div>
+            <div class="download-section">
+    <button id="downloadPdfBtn">
+        Download PDF Report
+    </button>
+</div>
+
+
+        </section>
+
+    </main>
+
+    <footer>
+        TruckSEO Intelligence · Website Analysis Platform
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
