@@ -1,4 +1,3 @@
-
 from app.crawler.site_crawler import crawl_website
 from app.crawler.fetcher import fetch_page
 from app.crawler.sitemap import discover_sitemap
@@ -13,8 +12,31 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
 
+from pathlib import Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
 from app.database import engine, SessionLocal
 from app.models.audit import Audit
+
+from io import BytesIO
+from xml.sax.saxutils import escape
+
+from fastapi import Body
+from fastapi.responses import StreamingResponse
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    KeepTogether
+)
 
 from app.analyzer.geo_analyzer import (
     analyze_business_identity,
@@ -28,6 +50,20 @@ app = FastAPI(
     description="AI-powered SEO, AEO and GEO website auditor",
     version="1.0.0"
 )
+
+
+# Frontend dashboard
+STATIC_DIR = Path(__file__).parent / "static"
+
+app.mount(
+    "/static",
+    StaticFiles(directory=STATIC_DIR),
+    name="static"
+)
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 # Database session
@@ -232,3 +268,102 @@ def analyze_website_technical_seo(data: AuditCreate):
     except (httpx.HTTPError, OSError, RuntimeError) as error:
         raise HTTPException(status_code=502, detail=str(error))
 
+
+@app.post("/download-report", include_in_schema=False)
+def download_report(report: dict = Body(...)):
+    buffer = BytesIO()
+
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        parent=styles["Title"],
+        alignment=TA_CENTER,
+        textColor=colors.HexColor("#17365D"),
+        spaceAfter=12
+    )
+
+    story = []
+
+    website_url = escape(str(report.get("website_url", "Unknown")))
+    audit_date = datetime.now().strftime("%d %B %Y, %I:%M %p")
+
+    story.append(Paragraph("TruckSEO Intelligence", title_style))
+    story.append(Paragraph("Website Audit Report", styles["Heading2"]))
+    story.append(Paragraph(f"Website: {website_url}", styles["Normal"]))
+    story.append(Paragraph(f"Audit Date: {audit_date}", styles["Normal"]))
+    story.append(Spacer(1, 15))
+
+    results = report.get("results", {})
+
+    score_keys = {
+        "SEO": "seo_score",
+        "AEO": "aeo_score",
+        "GEO": "geo_score",
+        "Technical SEO": "technical_seo_score"
+    }
+
+    score_data = [["Category", "Score"]]
+
+    for category, key in score_keys.items():
+        result = results.get(category, {})
+        score = result.get(key, "N/A")
+        score_data.append([category, f"{score}/100" if isinstance(score, (int, float)) else "N/A"])
+
+    score_table = Table(score_data, colWidths=[80 * mm, 55 * mm])
+    score_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#17365D")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("PADDING", (0, 0), (-1, -1), 8),
+    ]))
+
+    story.append(Paragraph("Performance Scores", styles["Heading2"]))
+    story.append(score_table)
+    story.append(Spacer(1, 15))
+
+    for category, result in results.items():
+        story.append(Paragraph(escape(str(category)), styles["Heading2"]))
+
+        issues = result.get("issues", [])
+        recommendations = result.get("recommendations", [])
+
+        story.append(Paragraph("Issues", styles["Heading3"]))
+
+        for issue in issues:
+            story.append(Paragraph(
+                f"&bull; {escape(str(issue))}",
+                styles["Normal"]
+            ))
+            story.append(Spacer(1, 4))
+
+        story.append(Paragraph("Recommendations", styles["Heading3"]))
+
+        for recommendation in recommendations:
+            story.append(Paragraph(
+                f"&bull; {escape(str(recommendation))}",
+                styles["Normal"]
+            ))
+            story.append(Spacer(1, 4))
+
+        story.append(Spacer(1, 12))
+
+    document.build(story)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'attachment; filename="truckseo-audit-report.pdf"'
+        }
+    )
